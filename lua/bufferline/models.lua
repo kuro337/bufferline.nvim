@@ -63,6 +63,7 @@ function Component:is_end() return self.type:match('group') end
 function Component:as_element()
   -- TODO: Figure out how to correctly type cast a component to a TabElement
   ---@diagnostic disable-next-line: return-type-mismatch
+
   if vim.tbl_contains({ 'buffer', 'tab' }, self.type) then return self end
 end
 
@@ -117,6 +118,7 @@ function Tabpage:new(tab)
     extension = tab.extension,
     type = tab.buftype,
   })
+
   if tab.name_formatter and type(tab.name_formatter) == 'function' then
     tab.name = tab.name_formatter({
       name = tab.name,
@@ -165,6 +167,7 @@ function Buffer:new(buf)
   buf.modified = vim.bo[buf.id].modified
   buf.buftype = vim.bo[buf.id].buftype
   buf.extension = fn.fnamemodify(buf.path, ':e')
+
   local is_directory = fn.isdirectory(buf.path) > 0
   buf.icon, buf.icon_highlight = utils.get_icon({
     filetype = vim.bo[buf.id].filetype,
