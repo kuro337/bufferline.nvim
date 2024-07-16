@@ -1,7 +1,8 @@
 local M = {}
 
--- Run tests using
--- nvim --headless --noplugin -u tests/minimal_init.lua -c "lua require('plenary.test_harness').test_directory('/path/bufferline.nvim/tests', {minimal_init = 'tests/minimal_init.lua'})"
+-- Run tests:
+-- nvim --headless --noplugin -u tests/minimal_init.lua -c \
+-- "lua require('plenary.test_harness').test_directory('/bufferline.nvim/tests', {minimal_init = 'tests/minimal_init.lua'})"
 
 function M.root(root)
 <<<<<<< HEAD
