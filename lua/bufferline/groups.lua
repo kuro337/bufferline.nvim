@@ -10,7 +10,8 @@ local C = lazy.require("bufferline.constants") ---@module "bufferline.constants"
 local fn = vim.fn
 
 -- contains info about the changes
--- local pr = require('bufferline.pr').get_instance()
+local pr = require("bufferline.pr").get_instance()
+pr:init({ debug = true, logfile = "/Users/kuro/.config/dotfiles/nvim/lua/debug/main.log" })
 
 --- @Group PR
 -- 1. Made type on_close optional in bufferline.Group type [types.lua:193]
@@ -21,6 +22,30 @@ local fn = vim.fn
 -- 6. Updated doc to provide more info on how to use options [doc/bufferline.txt]
 -- 7. Added a  set_bufferline_hls function for the user to directly specify all the styles required for Group Labels and Buffers in one go [pr:38]
 -- 8. Fixed the error of BufferLineCyclePrev/Next not working when current buffer is toggled and in a group [commands.lua:204 and groups:67]
+
+----------------------------------------------------------------------------------------------------
+--- Group Types
+--- @class UserGroup
+--- @field id  string
+--- @field name string
+--- @field priority integer
+--- @field hidden boolean
+--- @field display_name string
+
+---@class BufferInfo
+---@field id number
+---@field index number
+
+--- @class GroupBuffers
+--- @field id string
+--- @field name string
+--- @field priority integer
+--- @field hidden boolean
+--- @field display_name string
+--- @field [integer] BufferInfo
+
+--- @alias UserGroups table<integer, GroupBuffers>
+----------------------------------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------------------------------
 -- CONSTANTS
@@ -49,59 +74,15 @@ local function format_name(name) return name:gsub("[^%w]+", "_") end
 -- SEPARATORS
 ----------------------------------------------------------------------------------------------------
 
+-- Proposing these options - if the user wants to mark the start/ends of the groups
 -- initialized in setup() by reading config
-local group_sep_position = "both" -- "start" , "end" , "both"
-local group_sep_left, group_sep_right = "▎", "▎" -- thin/thick/custom
+-- local group_sep_position = "both" -- "start" , "end" , "both"
+local group_sep_left, group_sep_right = "▏", "▏" -- thin/thick/custom
 
 local separator = {}
 
 ------------------------------------------------------------
 --- @Change : Fixed logic for Group Tabs
-
-function M.set_group_hls(group_name, opts) require("bufferline.pr").set_group_hls(group_name, opts) end
-
----@param group bufferline.Group,
----@param hls  table<string, table<string, string>>
----@param count string
----@return bufferline.Separators
-function separator.pill(group, hls, count)
-  local bg_hl = hls.fill.hl_group
-  local name, display_name = group.name, group.display_name
-  local sep_grp, label_grp = hls[fmt("%s_separator", name)], hls[fmt("%s_label", name)]
-  local sep_hl = sep_grp and sep_grp.hl_group or hls.group_separator.hl_group
-  local label_hl = label_grp and label_grp.hl_group or hls.group_label.hl_group
-  local left, right = "█", "█"
-
-  local start_group_sep = group_sep_left
-  local end_group_sep = group_sep_right
-
-  if group_sep_position == "start" then
-    end_group_sep = ""
-  elseif group_sep_position == "end" then
-    start_group_sep = ""
-  end
-  local end_tab_sep = { highlight = sep_hl, text = end_group_sep }
-
-  local indicator = {
-    { text = start_group_sep, highlight = bg_hl },
-    { text = left, highlight = sep_hl },
-    { text = display_name .. count, highlight = label_hl },
-    { text = right, highlight = sep_hl },
-    { text = C.padding, highlight = bg_hl },
-  }
-
-  -- old pill creation
-  --    local indicator = {  -- old
-  --        { text = C.padding,             highlight = bg_hl },
-  --        { text = left,                  highlight = sep_hl },
-  --        { text = display_name .. count, highlight = label_hl },
-  --        { text = right,                 highlight = sep_hl },
-  --        { text = C.padding,             highlight = bg_hl },
-  --    }
-  -- return { sep_start = indicator, sep_end = space_end(hls) }
-
-  return { sep_start = indicator, sep_end = { end_tab_sep } }
-end
 
 --- Util function to get label sep highlight groups
 --- @param group bufferline.Group,
@@ -120,46 +101,80 @@ end
 --- @param group bufferline.Group,
 --- @param count string
 --- @return string
-local function get_tab_label(group, count)
+local function get_tab_label_text(group, count)
   local group_name = group.display_name or group.name
   local count_text = count and #count > 0 and " " .. count or ""
-  return fmt(" %s%s ", group_name, count_text)
+  return fmt("%s%s", group_name, count_text)
 end
 
+--- Centralize the segment creation and apply padding here optionally
 --- @param hl string
 --- @param text string
+--- @param pad_left integer?
+--- @param pad_right integer?
 --- @return bufferline.Segment
-local function create_style(hl, text) return { highlight = hl, text = text } end
+local function create_style(hl, text, pad_left, pad_right)
+  local left_padding = pad_left and string.rep(" ", pad_left) or ""
+  local right_padding = pad_right and string.rep(" ", pad_right) or ""
+  return { highlight = hl, text = left_padding .. text .. right_padding }
+end
+
+function M.set_group_hls(group_name, opts) require("bufferline.pr").set_group_hls(group_name, opts) end
+
+---@param group bufferline.Group,
+---@param hls  table<string, table<string, string>>
+---@param count string
+---@return bufferline.Separators
+function separator.pill(group, hls, count)
+  local label_hl, sep_hl = get_label_sep_hls(group, hls)
+  local pill_indicator = create_style(label_hl, get_tab_label_text(group, count))
+
+  local left, right = "█", "█"
+
+  -- left and right for the group label
+  local group_label_left, group_label_right = create_style(sep_hl, left), create_style(sep_hl, right, 0, 1)
+
+  -- e.g proposing here - user can control if they want to mark the ends/starts/or both for a group
+  -- in setup() - we read from config and set the group_sep_left and group_sep_right
+  local start_group_indicator, group_end_indicator =
+    create_style(sep_hl, group_sep_left), create_style(sep_hl, group_sep_right)
+
+  local group_start_indicator = {
+    start_group_indicator,
+    group_label_left,
+    pill_indicator,
+    group_label_right,
+  }
+
+  return { sep_start = group_start_indicator, sep_end = { group_end_indicator } }
+end
+
+-- old pill creation
+--    local indicator = {  -- old
+--        { text = C.padding,             highlight = bg_hl },
+--        { text = left,                  highlight = sep_hl },
+--        { text = display_name .. count, highlight = label_hl },
+--        { text = right,                 highlight = sep_hl },
+--        { text = C.padding,             highlight = bg_hl },
+--    }
+-- return { sep_start = indicator, sep_end = space_end(hls) }
 
 --- Creates the tab for the group
 ---@param group bufferline.Group,
 ---@param hls  table<string, table<string, string>>
 ---@param count string
----@param group_sep_pos string
----@param groupsep_left string
----@param groupsep_right string
 ---@return bufferline.Separators
-local function create_tab(group, hls, count, group_sep_pos, groupsep_left, groupsep_right)
-  local hl = hls.fill.hl_group
+local function create_tab(group, hls, count)
   local label_hl, sep_hl = get_label_sep_hls(group, hls)
 
-  local tab_label_text = get_tab_label(group, count)
+  -- the label text - e.g GroupName (2)
+  local tab_label = create_style(label_hl, get_tab_label_text(group, count), 1, 1)
 
-  local tab_left, tab_label = create_style(hl, ""), create_style(label_hl, tab_label_text)
-
-  local start_group_sep, end_group_sep = groupsep_left, groupsep_right
-
-  if group_sep_pos == "start" then
-    end_group_sep = ""
-  elseif group_sep_pos == "end" then
-    start_group_sep = ""
-  end
-
-  local start_tab_sep, end_tab_sep = create_style(sep_hl, start_group_sep), create_style(sep_hl, end_group_sep)
-
-  local indicator = { tab_left, tab_label, start_tab_sep }
-
-  return { sep_start = indicator, sep_end = { end_tab_sep } }
+  -- e.g proposing here - user can control if they want to mark the ends/starts/or both for a group
+  -- the beginning and end of the group (before and after the buffers)
+  local start_tab_sep, end_tab_sep = create_style(sep_hl, group_sep_left), create_style(sep_hl, group_sep_right)
+  local tab_start_indicator = { tab_label, start_tab_sep }
+  return { sep_start = tab_start_indicator, sep_end = { end_tab_sep } }
 end
 
 ---@param group bufferline.Group,
@@ -168,7 +183,7 @@ end
 ---@return bufferline.Separators
 ---@type GroupSeparator
 function separator.tab(group, hls, count)
-  local tab_gen = create_tab(group, hls, count, group_sep_position, group_sep_left, group_sep_right)
+  local tab_gen = create_tab(group, hls, count)
   return tab_gen
 end
 
@@ -302,35 +317,22 @@ local function get_manual_group(element) return group_state.manual_groupings[ele
 
 --------------------------------
 --- @Remove Group feature added, simply moves a buffer from the group to the ungrouped group
-
---- @param buffer_id integer
-local function move_buffer_to_ungrouped(buffer_id, from_group_id)
-  local ungrouped_index
-  local buffer_to_move
-  for i, group in ipairs(group_state.components_by_group) do
-    if group.id == from_group_id then
+--- Remove a buffer from the group
+--- @param buf_id integer
+--- @param group_id string
+function M.remove_buf_from_group(buf_id, group_id)
+  for _, group in ipairs(group_state.components_by_group) do
+    if group.id == group_id then
       for j, buf in ipairs(group) do
-        if buf.id == buffer_id then
-          buffer_to_move = table.remove(group, j)
+        if buf.id == buf_id then
+          table.remove(group, j) -- remove Buffer from the group
           break
         end
       end
-    elseif group.id == "ungrouped" then
-      ungrouped_index = i
     end
   end
-  if buffer_to_move and ungrouped_index then
-    table.insert(group_state.components_by_group[ungrouped_index], buffer_to_move)
-  end
-
-  -- Update manual_groupings if it exists
-  if group_state.manual_groupings then group_state.manual_groupings[buffer_id] = nil end
+  ui.refresh() -- refresh ui once removed
 end
-
---- Remove a buffer from the group - public function
---- @param buf_id integer
---- @param group_id string
-function M.remove_buf_from_group(buf_id, group_id) move_buffer_to_ungrouped(buf_id, group_id) end
 
 --------------------------------
 
@@ -338,7 +340,10 @@ function M.remove_buf_from_group(buf_id, group_id) move_buffer_to_ungrouped(buf_
 -- can vary i.e. buffer id or path and this should be changed in a centralised way.
 ---@param id number
 ---@param group_id string?
-local function set_manual_group(id, group_id) group_state.manual_groupings[id] = group_id end
+local function set_manual_group(id, group_id)
+  pr:log("set_manual_group", { id = id, group_id = group_id })
+  group_state.manual_groupings[id] = group_id
+end
 
 ---A temporary helper to inform user of the full buffer object that using it's full value is deprecated.
 ---@param obj table
@@ -374,6 +379,7 @@ function M.set_id(buffer)
       if matched then return id end
     end
   end
+  -- for new buffers - UNGROUPED_ID is returned by default
   return UNGROUPED_ID
 end
 
@@ -475,6 +481,7 @@ function M.setup(conf)
     })
   end
   -- Restore pinned buffer from the previous session
+
   api.nvim_create_autocmd("SessionLoadPost", { once = true, callback = restore_pinned_buffers })
 end
 
@@ -676,6 +683,10 @@ function M.action(name, action)
     ui.refresh()
     if name == PINNED_NAME then vim.g[PINNED_KEY] = {} end
     for buf, group_id in pairs(group_state.manual_groupings) do
+      pr:log(
+        "during close action-setting manual_groupings[buf] nil",
+        { buf = buf, manual_groupings = group_state.manual_groupings }
+      )
       if group_id == name then group_state.manual_groupings[buf] = nil end
     end
   elseif action == "toggle" then
@@ -710,27 +721,6 @@ function M.handle_group_enter()
     if group and group.auto_close and group.id ~= current_group.id then M.set_hidden(group.id, true) end
   end, state.components)
 end
-
---- @class UserGroup
---- @field id  string
---- @field name string
---- @field priority integer
---- @field hidden boolean
---- @field display_name string
-
----@class BufferInfo
----@field id number
----@field index number
-
---- @class GroupBuffers
---- @field id string
---- @field name string
---- @field priority integer
---- @field hidden boolean
---- @field display_name string
---- @field [integer] BufferInfo
-
---- @alias UserGroups table<integer, GroupBuffers>
 
 --- Get the buffer group from the tab/buf - and return the priority as we use Priority to index our user groups.
 --- using priority gives us the index where the buffers will be placed
@@ -919,6 +909,7 @@ local function render_clean(components, sorter)
   group_state.components_by_group = user_groups_minimal
 
   if vim.tbl_isempty(user_groups) then return components end
+
   local result = {} ---@type bufferline.Component[]
   for _, usergroup in ipairs(user_groups) do
     usergroup = sorter(usergroup) -- No Op
@@ -931,7 +922,10 @@ end
 ---@param components bufferline.Component[]
 ---@param sorter fun(list: bufferline.Component[]):bufferline.Component[]
 ---@return bufferline.Component[]
-function M.render(components, sorter) return render_clean(components, sorter) end
+function M.render(components, sorter)
+  pr:log("Components by group", { cg = group_state.components_by_group })
+  return render_clean(components, sorter)
+end
 
 M.builtin = builtin
 M.separator = separator
