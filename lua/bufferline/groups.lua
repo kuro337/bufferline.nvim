@@ -11,7 +11,7 @@ local fn = vim.fn
 
 -- contains info about the changes
 local pr = require("bufferline.pr").get_instance()
-pr:init({ debug = true, logfile = "/Users/kuro/.config/dotfiles/nvim/lua/debug/main.log" })
+pr:init({ debug = false, logfile = "/Users/kuro/.config/dotfiles/nvim/lua/debug/main.log" })
 
 --- @Group PR
 -- 1. Made type on_close optional in bufferline.Group type [types.lua:193]
@@ -340,10 +340,7 @@ end
 -- can vary i.e. buffer id or path and this should be changed in a centralised way.
 ---@param id number
 ---@param group_id string?
-local function set_manual_group(id, group_id)
-  pr:log("set_manual_group", { id = id, group_id = group_id })
-  group_state.manual_groupings[id] = group_id
-end
+local function set_manual_group(id, group_id) group_state.manual_groupings[id] = group_id end
 
 ---A temporary helper to inform user of the full buffer object that using it's full value is deprecated.
 ---@param obj table
@@ -683,10 +680,6 @@ function M.action(name, action)
     ui.refresh()
     if name == PINNED_NAME then vim.g[PINNED_KEY] = {} end
     for buf, group_id in pairs(group_state.manual_groupings) do
-      pr:log(
-        "during close action-setting manual_groupings[buf] nil",
-        { buf = buf, manual_groupings = group_state.manual_groupings }
-      )
       if group_id == name then group_state.manual_groupings[buf] = nil end
     end
   elseif action == "toggle" then
@@ -922,10 +915,7 @@ end
 ---@param components bufferline.Component[]
 ---@param sorter fun(list: bufferline.Component[]):bufferline.Component[]
 ---@return bufferline.Component[]
-function M.render(components, sorter)
-  pr:log("Components by group", { cg = group_state.components_by_group })
-  return render_clean(components, sorter)
-end
+function M.render(components, sorter) return render_clean(components, sorter) end
 
 M.builtin = builtin
 M.separator = separator
