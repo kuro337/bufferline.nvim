@@ -6,6 +6,7 @@ local fmt = string.format
 --- @class PR
 local P = {}
 
+--[[
 --- @Group PR
 -- 1. Made type on_close optional in bufferline.Group type [types.lua:193]
 -- 2. in Group Setup - added group specific separator options - such as placing the sep at start/end [config.lua:678]
@@ -105,7 +106,7 @@ local function tab_old(group, hls, count)
     }
     return { sep_start = indicator, sep_end = space_end(hls) }
 end
---]]
+
 
 -- these are defined in groups.lua
 --- @param count 1 | -1
@@ -388,8 +389,11 @@ local function get_instance()
   return instance
 end
 
-return {
-  get_instance = get_instance,
-  set_group_hls = set_group_hls,
-  get_tabline_text_and_highlights = get_tabline_text_and_highlights,
-}
+--]]
+
+return P
+-- return {
+-- get_instance = get_instance,
+-- set_group_hls = set_group_hls,
+-- get_tabline_text_and_highlights = get_tabline_text_and_highlights,
+-- }

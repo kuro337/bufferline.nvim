@@ -1,17 +1,15 @@
-local lazy = require("bufferline.lazy")
-local ui = lazy.require("bufferline.ui") ---@module "bufferline.ui"
-local utils = lazy.require("bufferline.utils") ---@module "bufferline.utils"
-local models = lazy.require("bufferline.models") ---@module "bufferline.models"
-local config = lazy.require("bufferline.config") ---@module "bufferline.config"
-local commands = lazy.require("bufferline.commands") ---@module "bufferline.commands"
-local state = lazy.require("bufferline.state") ---@module "bufferline.state"
-local C = lazy.require("bufferline.constants") ---@module "bufferline.constants"
+local lazy = require('bufferline.lazy')
+local ui = lazy.require('bufferline.ui') ---@module "bufferline.ui"
+local utils = lazy.require('bufferline.utils') ---@module "bufferline.utils"
+local models = lazy.require('bufferline.models') ---@module "bufferline.models"
+local config = lazy.require('bufferline.config') ---@module "bufferline.config"
+local commands = lazy.require('bufferline.commands') ---@module "bufferline.commands"
+local state = lazy.require('bufferline.state') ---@module "bufferline.state"
+local C = lazy.require('bufferline.constants') ---@module "bufferline.constants"
 
 local fn = vim.fn
 
 -- contains info about the changes
-local pr = require("bufferline.pr").get_instance()
-pr:init({ debug = false, logfile = "/Users/kuro/.config/dotfiles/nvim/lua/debug/main.log" })
 
 --- @Group PR
 -- 1. Made type on_close optional in bufferline.Group type [types.lua:193]
@@ -51,11 +49,11 @@ pr:init({ debug = false, logfile = "/Users/kuro/.config/dotfiles/nvim/lua/debug/
 -- CONSTANTS
 ----------------------------------------------------------------------------------------------------
 
-local PINNED_ID = "pinned"
-local PINNED_NAME = "pinned"
-local UNGROUPED_NAME = "ungrouped"
-local UNGROUPED_ID = "ungrouped"
-local PINNED_KEY = "BufferlinePinnedBuffers"
+local PINNED_ID = 'pinned'
+local PINNED_NAME = 'pinned'
+local UNGROUPED_NAME = 'ungrouped'
+local UNGROUPED_ID = 'ungrouped'
+local PINNED_KEY = 'BufferlinePinnedBuffers'
 
 local api = vim.api
 local fmt = string.format
@@ -68,7 +66,7 @@ local M = {}
 
 --- Remove illegal characters from a group name name
 ---@param name string
-local function format_name(name) return name:gsub("[^%w]+", "_") end
+local function format_name(name) return name:gsub('[^%w]+', '_') end
 
 ----------------------------------------------------------------------------------------------------
 -- SEPARATORS
@@ -77,7 +75,7 @@ local function format_name(name) return name:gsub("[^%w]+", "_") end
 -- Proposing these options - if the user wants to mark the start/ends of the groups
 -- initialized in setup() by reading config
 -- local group_sep_position = "both" -- "start" , "end" , "both"
-local group_sep_left, group_sep_right = "▏", "▏" -- thin/thick/custom
+local group_sep_left, group_sep_right = '▏', '▏' -- thin/thick/custom
 
 local separator = {}
 
@@ -91,9 +89,9 @@ local separator = {}
 --- @return string
 local function get_label_sep_hls(group, hls)
   local name = group.name
-  local label_grp = hls[fmt("%s_label", name)]
+  local label_grp = hls[fmt('%s_label', name)]
   local label_hl = label_grp and label_grp.hl_group or hls.group_label.hl_group
-  local sep_grp = hls[fmt("%s_separator", name)]
+  local sep_grp = hls[fmt('%s_separator', name)]
   local sep_hl = sep_grp and sep_grp.hl_group or hls.group_separator.hl_group
   return label_hl, sep_hl
 end
@@ -103,8 +101,8 @@ end
 --- @return string
 local function get_tab_label_text(group, count)
   local group_name = group.display_name or group.name
-  local count_text = count and #count > 0 and " " .. count or ""
-  return fmt("%s%s", group_name, count_text)
+  local count_text = count and #count > 0 and ' ' .. count or ''
+  return fmt('%s%s', group_name, count_text)
 end
 
 --- Centralize the segment creation and apply padding here optionally
@@ -114,12 +112,12 @@ end
 --- @param pad_right integer?
 --- @return bufferline.Segment
 local function create_style(hl, text, pad_left, pad_right)
-  local left_padding = pad_left and string.rep(" ", pad_left) or ""
-  local right_padding = pad_right and string.rep(" ", pad_right) or ""
+  local left_padding = pad_left and string.rep(' ', pad_left) or ''
+  local right_padding = pad_right and string.rep(' ', pad_right) or ''
   return { highlight = hl, text = left_padding .. text .. right_padding }
 end
 
-function M.set_group_hls(group_name, opts) require("bufferline.pr").set_group_hls(group_name, opts) end
+function M.set_group_hls(group_name, opts) require('bufferline.pr').set_group_hls(group_name, opts) end
 
 ---@param group bufferline.Group,
 ---@param hls  table<string, table<string, string>>
@@ -129,7 +127,7 @@ function separator.pill(group, hls, count)
   local label_hl, sep_hl = get_label_sep_hls(group, hls)
   local pill_indicator = create_style(label_hl, get_tab_label_text(group, count))
 
-  local left, right = "█", "█"
+  local left, right = '█', '█'
 
   -- left and right for the group label
   local group_label_left, group_label_right = create_style(sep_hl, left), create_style(sep_hl, right, 0, 1)
@@ -224,7 +222,7 @@ function Group:new(o, index)
   o = o or { priority = index }
   self.__index = self
   local name = format_name(o.name)
-  o = vim.tbl_extend("force", o, {
+  o = vim.tbl_extend('force', o, {
     id = o.id or name,
     hidden = o.hidden == nil and false or o.hidden,
     name = name,
@@ -253,7 +251,7 @@ builtin.ungrouped = Group:new({
 builtin.pinned = Group:new({
   id = PINNED_ID,
   name = PINNED_NAME,
-  icon = "📌",
+  icon = '📌',
   priority = 1,
   separator = {
     style = separator.none,
@@ -290,9 +288,9 @@ end
 
 --- @param count 1 | -1
 local function update_toggled(count)
-  assert(count == 1 or count == -1, "count must be either 1 or -1")
-  assert(toggled_groups + count <= vim.tbl_count(group_state.user_groups), "count cannot exceed number of user groups")
-  assert(toggled_groups + count >= 0, "count cannot be lower than 0 " .. toggled_groups)
+  assert(count == 1 or count == -1, 'count must be either 1 or -1')
+  assert(toggled_groups + count <= vim.tbl_count(group_state.user_groups), 'count cannot exceed number of user groups')
+  assert(toggled_groups + count >= 0, 'count cannot be lower than 0 ' .. toggled_groups)
   toggled_groups = toggled_groups + count
 end
 
@@ -305,9 +303,9 @@ local function persist_pinned_buffers()
   end
 
   if #pinned == 0 then
-    vim.g[PINNED_KEY] = ""
+    vim.g[PINNED_KEY] = ''
   else
-    vim.g[PINNED_KEY] = table.concat(pinned, ",")
+    vim.g[PINNED_KEY] = table.concat(pinned, ',')
   end
 end
 
@@ -365,7 +363,7 @@ function M.set_id(buffer)
   local manual_group = get_manual_group(buffer)
   if manual_group then return manual_group end
   for id, group in pairs(group_state.user_groups) do
-    if type(group.matcher) == "function" then
+    if type(group.matcher) == 'function' then
       local matched = group.matcher(with_deprecation({
         id = buffer.id,
         name = buffer.name,
@@ -418,7 +416,7 @@ end
 local function restore_pinned_buffers()
   local pinned = vim.g[PINNED_KEY]
   if not pinned then return end
-  local manual_groupings = vim.split(pinned, ",") or {}
+  local manual_groupings = vim.split(pinned, ',') or {}
   for _, path in ipairs(manual_groupings) do
     local buf_id = fn.bufnr(path --[[@as integer]])
     if buf_id ~= -1 then
@@ -432,18 +430,18 @@ end
 --- Initialize the group sep settings from the config
 ---@param conf bufferline.UserConfig
 local function initialize_group_separators(conf)
-  local group_sep_type = vim.tbl_get(conf, "options", "groups", "options", "separator_position") or ""
+  local group_sep_type = vim.tbl_get(conf, 'options', 'groups', 'options', 'separator_position') or ''
   if group_sep_type then group_sep_position = group_sep_type end
 
-  local separator_style = vim.tbl_get(conf, "options", "groups", "options", "separator_style") or "none"
+  local separator_style = vim.tbl_get(conf, 'options', 'groups', 'options', 'separator_style') or 'none'
 
-  if separator_style == "thick" then
-    group_sep_left = "▎"
-    group_sep_right = "▎"
-  elseif separator_style == "thin" then
-    group_sep_left = "▏"
-    group_sep_right = "▏"
-  elseif type(separator_style) == "table" and #separator_style == 2 then
+  if separator_style == 'thick' then
+    group_sep_left = '▎'
+    group_sep_right = '▎'
+  elseif separator_style == 'thin' then
+    group_sep_left = '▏'
+    group_sep_right = '▏'
+  elseif type(separator_style) == 'table' and #separator_style == 2 then
     group_sep_left = separator_style[1]
     group_sep_right = separator_style[2]
   end
@@ -453,7 +451,7 @@ end
 ---@param conf bufferline.UserConfig
 function M.setup(conf)
   if not conf then return end
-  local groups = vim.tbl_get(conf, "options", "groups", "items") or {} ---@type bufferline.Group[]
+  local groups = vim.tbl_get(conf, 'options', 'groups', 'items') or {} ---@type bufferline.Group[]
   -- if the user has already set the pinned builtin themselves
   -- then we want each group to have a priority based on it's position in the list
   -- otherwise we want to shift the priorities of their groups by 1 to accommodate the pinned group
@@ -479,7 +477,7 @@ function M.setup(conf)
   end
   -- Restore pinned buffer from the previous session
 
-  api.nvim_create_autocmd("SessionLoadPost", { once = true, callback = restore_pinned_buffers })
+  api.nvim_create_autocmd('SessionLoadPost', { once = true, callback = restore_pinned_buffers })
 end
 
 ---Execute a command on each buffer of a group
@@ -502,8 +500,8 @@ local function group_by(attr)
   end
 end
 
-local group_by_name = group_by("name")
-local group_by_priority = group_by("priority")
+local group_by_name = group_by('name')
+local group_by_priority = group_by('priority')
 
 ---@param element bufferline.TabElement
 function M._is_pinned(element) return get_manual_group(element) == PINNED_ID end
@@ -536,7 +534,7 @@ function M.remove_id_from_manual_groupings(id) group_state.manual_groupings[id] 
 ---@param id string
 ---@param value boolean
 function M.set_hidden(id, value)
-  assert(id, "You must pass in a group ID to set its state")
+  assert(id, 'You must pass in a group ID to set its state')
   local group = group_state.user_groups[id]
   if group then group.hidden = value end
 end
@@ -583,11 +581,11 @@ function M.complete(arg_lead, cmd_line, cursor_pos) return names() end
 local function create_indicator(group, hls, count)
   hls = hls or {}
 
-  local count_item = group.hidden and fmt("(%s)", count) or ""
+  local count_item = group.hidden and fmt('(%s)', count) or ''
   local seps = group.separator.style(group, hls, count_item)
 
   if seps.sep_start then
-    table.insert(seps.sep_start, ui.make_clickable("handle_group_click", group.priority, { attr = { global = true } }))
+    table.insert(seps.sep_start, ui.make_clickable('handle_group_click', group.priority, { attr = { global = true } }))
   end
 
   return seps
@@ -619,14 +617,14 @@ local function get_group_marker(group_id, components)
   local s_end_length = ui.get_component_size(s_end)
   if s_start_length > 0 then
     group_start = GroupView:new({
-      type = "group_start",
+      type = 'group_start',
       length = s_start_length,
       component = function() return s_start end,
     })
   end
   if s_end_length > 0 then
     group_end = GroupView:new({
-      type = "group_end",
+      type = 'group_end',
       length = s_end_length,
       component = function() return s_end end,
     })
@@ -674,18 +672,18 @@ function M.get_all() return group_state.user_groups end
 ---@param name string
 ---@param action group_actions | fun(b: bufferline.Buffer)
 function M.action(name, action)
-  assert(name, "A name must be passed to execute a group action")
-  if action == "close" then
+  assert(name, 'A name must be passed to execute a group action')
+  if action == 'close' then
     command(name, function(b) api.nvim_buf_delete(b.id, { force = true }) end)
     ui.refresh()
     if name == PINNED_NAME then vim.g[PINNED_KEY] = {} end
     for buf, group_id in pairs(group_state.manual_groupings) do
       if group_id == name then group_state.manual_groupings[buf] = nil end
     end
-  elseif action == "toggle" then
+  elseif action == 'toggle' then
     M.toggle_hidden(nil, name)
     ui.refresh()
-  elseif type(action) == "function" then
+  elseif type(action) == 'function' then
     command(name, action)
   end
 end
@@ -694,9 +692,9 @@ function M.toggle_pin()
   local _, element = commands.get_current_element_index(state)
   if not element then return end
   if M._is_pinned(element) then
-    M.remove_element("pinned", element)
+    M.remove_element('pinned', element)
   else
-    M.add_element("pinned", element)
+    M.add_element('pinned', element)
   end
   ui.refresh()
 end
