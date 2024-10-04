@@ -9,6 +9,8 @@ local C = lazy.require("bufferline.constants") ---@module "bufferline.constants"
 
 local fn = vim.fn
 
+local no = 200
+
 -- contains info about the changes
 
 --- @Group PR
