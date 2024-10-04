@@ -1,17 +1,17 @@
-local lazy = require("bufferline.lazy")
-local ui = lazy.require("bufferline.ui") ---@module "bufferline.ui"
-local utils = lazy.require("bufferline.utils") ---@module "bufferline.utils"
-local state = lazy.require("bufferline.state") ---@module "bufferline.state"
-local groups = lazy.require("bufferline.groups") ---@module "bufferline.groups"
-local config = lazy.require("bufferline.config") ---@module "bufferline.config"
-local sorters = lazy.require("bufferline.sorters") ---@module "bufferline.sorters"
-local buffers = lazy.require("bufferline.buffers") ---@module "bufferline.buffers"
-local commands = lazy.require("bufferline.commands") ---@module "bufferline.commands"
-local tabpages = lazy.require("bufferline.tabpages") ---@module "bufferline.tabpages"
-local highlights = lazy.require("bufferline.highlights") ---@module "bufferline.highlights"
-local hover = lazy.require("bufferline.hover") ---@module "bufferline.hover"
+local lazy = require('bufferline.lazy')
+local ui = lazy.require('bufferline.ui') ---@module "bufferline.ui"
+local utils = lazy.require('bufferline.utils') ---@module "bufferline.utils"
+local state = lazy.require('bufferline.state') ---@module "bufferline.state"
+local groups = lazy.require('bufferline.groups') ---@module "bufferline.groups"
+local config = lazy.require('bufferline.config') ---@module "bufferline.config"
+local sorters = lazy.require('bufferline.sorters') ---@module "bufferline.sorters"
+local buffers = lazy.require('bufferline.buffers') ---@module "bufferline.buffers"
+local commands = lazy.require('bufferline.commands') ---@module "bufferline.commands"
+local tabpages = lazy.require('bufferline.tabpages') ---@module "bufferline.tabpages"
+local highlights = lazy.require('bufferline.highlights') ---@module "bufferline.highlights"
+local hover = lazy.require('bufferline.hover') ---@module "bufferline.hover"
 
-local get_tabline_text_and_highlights = require("bufferline.pr").get_tabline_text_and_highlights
+local get_tabline_text_and_highlights = require('bufferline.pr').get_tabline_text_and_highlights
 
 -- @v:lua@ in the tabline only supports global functions, so this is
 -- the only way to add click handlers without autoloaded vimscript functions
@@ -90,7 +90,7 @@ local function bufferline()
 
   -- :BufferLineDebug -> prints the rendered tabline from the BufferLineDebug command
   if capture_next_render then
-    print("Current Tabline and Highlights:\n" .. vim.inspect(get_tabline_text_and_highlights(tabline.str)))
+    print('Current Tabline and Highlights:\n' .. vim.inspect(get_tabline_text_and_highlights(tabline.str)))
     capture_next_render = false
   end
 
@@ -113,11 +113,11 @@ end
 
 ---@param conf bufferline.Config
 local function setup_autocommands(conf)
-  local BUFFERLINE_GROUP = "BufferlineCmds"
+  local BUFFERLINE_GROUP = 'BufferlineCmds'
   local options = conf.options
   api.nvim_create_augroup(BUFFERLINE_GROUP, { clear = true })
-  api.nvim_create_autocmd("ColorScheme", {
-    pattern = "*",
+  api.nvim_create_autocmd('ColorScheme', {
+    pattern = '*',
     group = BUFFERLINE_GROUP,
     callback = function()
       highlights.reset_icon_hl_cache()
@@ -126,39 +126,39 @@ local function setup_autocommands(conf)
   })
   if not options or vim.tbl_isempty(options) then return end
   if options.persist_buffer_sort then
-    api.nvim_create_autocmd("SessionLoadPost", {
-      pattern = "*",
+    api.nvim_create_autocmd('SessionLoadPost', {
+      pattern = '*',
       group = BUFFERLINE_GROUP,
       callback = function() state.custom_sort = utils.restore_positions() end,
     })
   end
   if not options.always_show_bufferline then
     -- toggle tabline
-    api.nvim_create_autocmd({ "BufAdd", "TabEnter" }, {
-      pattern = "*",
+    api.nvim_create_autocmd({ 'BufAdd', 'TabEnter' }, {
+      pattern = '*',
       group = BUFFERLINE_GROUP,
       callback = function() toggle_bufferline() end,
     })
   end
 
-  api.nvim_create_autocmd("BufRead", {
-    pattern = "*",
+  api.nvim_create_autocmd('BufRead', {
+    pattern = '*',
     once = true,
     callback = function() vim.schedule(groups.handle_group_enter) end,
   })
 
-  api.nvim_create_autocmd("BufEnter", {
-    pattern = "*",
+  api.nvim_create_autocmd('BufEnter', {
+    pattern = '*',
     callback = function() groups.handle_group_enter() end,
   })
 
-  api.nvim_create_autocmd("User", {
-    pattern = "BufferLineHoverOver",
+  api.nvim_create_autocmd('User', {
+    pattern = 'BufferLineHoverOver',
     callback = function(args) ui.on_hover_over(args.buf, args.data) end,
   })
 
-  api.nvim_create_autocmd("User", {
-    pattern = "BufferLineHoverOut",
+  api.nvim_create_autocmd('User', {
+    pattern = 'BufferLineHoverOut',
     callback = ui.on_hover_out,
   })
 end
@@ -166,51 +166,48 @@ end
 local function command(name, cmd, opts) api.nvim_create_user_command(name, cmd, opts or {}) end
 
 local function setup_commands()
-  command("BufferLinePick", function() M.pick() end)
-  command("BufferLinePickClose", function() M.close_with_pick() end)
-  command("BufferLineCycleNext", function() M.cycle(1) end)
-  command("BufferLineCyclePrev", function() M.cycle(-1) end)
-  command("BufferLineCloseRight", function() M.close_in_direction("right") end)
-  command("BufferLineCloseLeft", function() M.close_in_direction("left") end)
-  command("BufferLineCloseOthers", function() M.close_others() end)
-  command("BufferLineMoveNext", function() M.move(1) end)
-  command("BufferLineMovePrev", function() M.move(-1) end)
-  command("BufferLineSortByExtension", function() M.sort_by("extension") end)
-  command("BufferLineSortByDirectory", function() M.sort_by("directory") end)
-  command("BufferLineSortByRelativeDirectory", function() M.sort_by("relative_directory") end)
-  command("BufferLineSortByTabs", function() M.sort_by("tabs") end)
-  command("BufferLineGoToBuffer", function(opts) M.go_to(opts.args) end, { nargs = 1 })
-  command("BufferLineTogglePin", function() groups.toggle_pin() end, { nargs = 0 })
-  command("BufferLineTabRename", function(opts) M.rename_tab(opts.fargs) end, { nargs = "*" })
-  command("BufferLineGroupClose", function(opts) groups.action(opts.args, "close") end, {
+  command('BufferLinePick', function() M.pick() end)
+  command('BufferLinePickClose', function() M.close_with_pick() end)
+  command('BufferLineCycleNext', function() M.cycle(1) end)
+  command('BufferLineCyclePrev', function() M.cycle(-1) end)
+  command('BufferLineCloseRight', function() M.close_in_direction('right') end)
+  command('BufferLineCloseLeft', function() M.close_in_direction('left') end)
+  command('BufferLineCloseOthers', function() M.close_others() end)
+  command('BufferLineMoveNext', function() M.move(1) end)
+  command('BufferLineMovePrev', function() M.move(-1) end)
+  command('BufferLineSortByExtension', function() M.sort_by('extension') end)
+  command('BufferLineSortByDirectory', function() M.sort_by('directory') end)
+  command('BufferLineSortByRelativeDirectory', function() M.sort_by('relative_directory') end)
+  command('BufferLineSortByTabs', function() M.sort_by('tabs') end)
+  command('BufferLineGoToBuffer', function(opts) M.go_to(opts.args) end, { nargs = 1 })
+  command('BufferLineTogglePin', function() groups.toggle_pin() end, { nargs = 0 })
+  command('BufferLineTabRename', function(opts) M.rename_tab(opts.fargs) end, { nargs = '*' })
+  command('BufferLineGroupClose', function(opts) groups.action(opts.args, 'close') end, {
     nargs = 1,
     complete = groups.complete,
   })
-  command("BufferLineGroupToggle", function(opts) groups.action(opts.args, "toggle") end, {
+  command('BufferLineGroupToggle', function(opts) groups.action(opts.args, 'toggle') end, {
     nargs = 1,
     complete = groups.complete,
   })
   --- New commands
   --- 1. Print the current rendered tabline so users can easily find which Highlight group to change
-  command("BufferLineDebug", function()
-    debug_tabline = true
-    ui.refresh()
-  end, { nargs = 0 })
+  command('BufferLineDebug', function() ui.refresh() end, { nargs = 0 })
   -- 2. Remove Command to remove a single buffer from a Group instead of only allowing buffer naming to control groups
   -- Moves the buf from the group to the ungrouped group
-  command("BufferLineRemove", function(opts)
-    local args = vim.split(opts.args, " ")
+  command('BufferLineRemove', function(opts)
+    local args = vim.split(opts.args, ' ')
     local buffer_id, group_id = tonumber(args[1]), args[2]
     if buffer_id and group_id then
       groups.remove_buf_from_group(buffer_id, group_id)
       ui.refresh()
     end
-  end, { nargs = "+", complete = function(ArgLead, CmdLine, CursorPos) return {} end })
+  end, { nargs = '+', complete = function(ArgLead, CmdLine, CursorPos) return {} end })
 end
 
 local function setup_diagnostic_handler(preferences)
-  if preferences.options.diagnostics == "nvim_lsp" and preferences.options.diagnostics_update_on_event then
-    vim.diagnostic.handlers["bufferline"] = {
+  if preferences.options.diagnostics == 'nvim_lsp' and preferences.options.diagnostics_update_on_event then
+    vim.diagnostic.handlers['bufferline'] = {
       show = function() ui.refresh() end,
       hide = function() ui.refresh() end,
     }
@@ -229,7 +226,7 @@ function M.setup(conf)
   setup_commands()
   setup_autocommands(preferences)
   setup_diagnostic_handler(preferences)
-  vim.o.tabline = "%!v:lua.nvim_bufferline()"
+  vim.o.tabline = '%!v:lua.nvim_bufferline()'
   toggle_bufferline()
 end
 
