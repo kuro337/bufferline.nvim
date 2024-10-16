@@ -1,7 +1,7 @@
-local lazy = require('bufferline.lazy')
-local utils = lazy.require('bufferline.utils') ---@module "bufferline.utils"
-local log = lazy.require('bufferline.utils.log') ---@module "bufferline.utils.log"
-local constants = lazy.require('bufferline.constants') ---@module "bufferline.constants"
+local lazy = require("bufferline.lazy")
+local utils = lazy.require("bufferline.utils") ---@module "bufferline.utils"
+local log = lazy.require("bufferline.utils.log") ---@module "bufferline.utils.log"
+local constants = lazy.require("bufferline.constants") ---@module "bufferline.constants"
 
 local M = {}
 
@@ -33,19 +33,19 @@ local Component = {}
 
 ---@param field string
 local function not_implemented(field)
-  log.debug(debug.traceback('Stack trace:'))
-  error(fmt('%s is not implemented yet', field))
+  log.debug(debug.traceback("Stack trace:"))
+  error(fmt("%s is not implemented yet", field))
 end
 
 ---@generic T
 ---@param t table
 ---@return T
 function Component:new(t)
-  assert(t.type, 'all components must have a type')
+  assert(t.type, "all components must have a type")
   self.length = t.length or 0
   self.focusable = true
   if t.focusable ~= nil then self.focusable = t.focusable end
-  self.component = t.component or function() not_implemented('component') end
+  self.component = t.component or function() not_implemented("component") end
   setmetatable(t, self)
   self.__index = self
   return t
@@ -53,18 +53,18 @@ end
 
 -- TODO: this should be handled based on the type of entity
 -- e.g. a buffer should report if it's current but other things shouldn't
-function Component:current() not_implemented('current') end
+function Component:current() not_implemented("current") end
 
 ---Determine if the current view tab should be treated as the end of a section
 ---@return boolean
-function Component:is_end() return self.type:match('group') end
+function Component:is_end() return self.type:match("group") end
 
 ---@return bufferline.TabElement?
 function Component:as_element()
   -- TODO: Figure out how to correctly type cast a component to a TabElement
   ---@diagnostic disable-next-line: return-type-mismatch
 
-  if vim.tbl_contains({ 'buffer', 'tab' }, self.type) then return self end
+  if vim.tbl_contains({ "buffer", "tab" }, self.type) then return self end
 end
 
 ---Find the directory prefix of an element up to a certain depth
@@ -72,20 +72,20 @@ end
 ---@param formatter (fun(path: string, depth: integer): string)?
 ---@return string
 function Component:__ancestor(depth, formatter)
-  if self.type ~= 'buffer' and self.type ~= 'tab' then return '' end
+  if self.type ~= "buffer" and self.type ~= "tab" then return "" end
   local parts = vim.split(self.path, utils.path_sep, { trimempty = true })
   local index = (depth and depth > #parts) and 1 or (#parts - depth) + 1
   local dir = table.concat(parts, utils.path_sep, index, #parts - 1) .. utils.path_sep
-  if dir == '' then return '' end
+  if dir == "" then return "" end
   if formatter then dir = formatter(dir, depth) end
   return dir
 end
 
-local GroupView = Component:new({ type = 'group', focusable = false })
+local GroupView = Component:new({ type = "group", focusable = false })
 
 function GroupView:new(group)
-  assert(group, 'The type should be passed to a group on create')
-  assert(group.component, 'a group MUST have a component')
+  assert(group, "The type should be passed to a group on create")
+  assert(group.component, "a group MUST have a component")
   self.type = group.type or self.type
   setmetatable(group, self)
   self.__index = self
@@ -95,7 +95,7 @@ end
 function GroupView:current() return false end
 
 ---@type bufferline.Tab
-local Tabpage = Component:new({ type = 'tab' })
+local Tabpage = Component:new({ type = "tab" })
 
 local function get_modified_state(buffers)
   for _, buf in pairs(buffers) do
@@ -105,12 +105,12 @@ local function get_modified_state(buffers)
 end
 
 function Tabpage:new(tab)
-  tab.name = fn.fnamemodify(tab.path, ':t')
-  assert(tab.buf, fmt('A tab must a have a buffer: %s', vim.inspect(tab)))
+  tab.name = fn.fnamemodify(tab.path, ":t")
+  assert(tab.buf, fmt("A tab must a have a buffer: %s", vim.inspect(tab)))
   tab.modifiable = vim.bo[tab.buf].modifiable
   tab.modified = get_modified_state(tab.buffers)
   tab.buftype = vim.bo[tab.buf].buftype
-  tab.extension = fn.fnamemodify(tab.path, ':e')
+  tab.extension = fn.fnamemodify(tab.path, ":e")
   tab.icon, tab.icon_highlight = utils.get_icon({
     filetype = vim.bo[tab.buf].filetype,
     directory = fn.isdirectory(tab.path) > 0,
@@ -119,7 +119,7 @@ function Tabpage:new(tab)
     type = tab.buftype,
   })
 
-  if tab.name_formatter and type(tab.name_formatter) == 'function' then
+  if tab.name_formatter and type(tab.name_formatter) == "function" then
     tab.name = tab.name_formatter({
       name = tab.name,
       path = tab.path,
@@ -149,24 +149,24 @@ function Tabpage:visible() return api.nvim_get_current_tabpage() == self.id end
 --- @param formatter fun(string, number)
 --- @return string
 function Tabpage:ancestor(depth, formatter)
-  if self.duplicated == 'element' then return '(duplicated) ' end
+  if self.duplicated == "element" then return "(duplicated) " end
   return self:__ancestor(depth, formatter)
 end
 
 ---@alias BufferComponent fun(index: integer, buf_count: integer): bufferline.Segment[]
 
 ---@type bufferline.Buffer
-local Buffer = Component:new({ type = 'buffer' })
+local Buffer = Component:new({ type = "buffer" })
 
 ---create a new buffer class
 ---@param buf bufferline.Buffer
 ---@return bufferline.Buffer
 function Buffer:new(buf)
-  assert(buf, 'A buffer must be passed to create a buffer class')
+  assert(buf, "A buffer must be passed to create a buffer class")
   buf.modifiable = vim.bo[buf.id].modifiable
   buf.modified = vim.bo[buf.id].modified
   buf.buftype = vim.bo[buf.id].buftype
-  buf.extension = fn.fnamemodify(buf.path, ':e')
+  buf.extension = fn.fnamemodify(buf.path, ":e")
 
   local is_directory = fn.isdirectory(buf.path) > 0
   buf.icon, buf.icon_highlight = utils.get_icon({
@@ -176,13 +176,13 @@ function Buffer:new(buf)
     extension = buf.extension,
     type = buf.buftype,
   })
-  local name = '[No Name]'
+  local name = "[No Name]"
   if buf.path and #buf.path > 0 then
-    name = fn.fnamemodify(buf.path, ':t')
-    name = is_directory and name .. '/' or name
+    name = fn.fnamemodify(buf.path, ":t")
+    name = is_directory and name .. "/" or name
   end
 
-  if buf.name_formatter and type(buf.name_formatter) == 'function' then
+  if buf.name_formatter and type(buf.name_formatter) == "function" then
     name = buf.name_formatter({ name = name, path = buf.path, bufnr = buf.id }) or name
   end
 

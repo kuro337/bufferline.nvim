@@ -9,17 +9,6 @@ local C = lazy.require("bufferline.constants") ---@module "bufferline.constants"
 
 local fn = vim.fn
 
---- Added in local current commit - LOCAL
---- Added in local current commit - LOCAL
---- Added in local current commit - LOCAL
---- Added in local current commit - LOCAL
---- Added in local current commit - LOCAL
---- Added in local current commit - LOCAL
----   running git log -1 --oneline
----   af22630 (HEAD -> group_functionality) current local commit from true branch
-
--- contains info about the changes
-
 --- @Group PR
 -- 1. Made type on_close optional in bufferline.Group type [types.lua:193]
 -- 2. in Group Setup - added group specific separator options - such as placing the sep at start/end [config.lua:678]
