@@ -75,9 +75,9 @@ local function bufferline()
 
   state.set({ current_element_index = current_idx })
 
-  local start = vim.uv.hrtime()
+  -- local start = vim.uv.hrtime()
   components = not is_tabline and groups.render(components, sorter) or sorter(components)
-  print("Time Taken:" .. tostring((vim.uv.hrtime() - start) / 1e6))
+  -- print("Time Taken:" .. tostring((vim.uv.hrtime() - start) / 1e6))
 
   local tabline = ui.tabline(components, tabpages.get())
 
