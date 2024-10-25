@@ -115,8 +115,6 @@ local function create_style(hl, text, pad_left, pad_right)
   return { highlight = hl, text = left_padding .. text .. right_padding }
 end
 
-function M.set_group_hls(group_name, opts) require("bufferline.pr").set_group_hls(group_name, opts) end
-
 ---@param group bufferline.Group,
 ---@param hls  table<string, table<string, string>>
 ---@param count string
@@ -592,6 +590,59 @@ end
 --- Once sorting is done and we have the components and clustered by group
 --- Create the start/end visual indicators for each group
 
+local function get_component_size(segments)
+  assert(utils.is_list(segments), "Segments must be a list")
+  -- local sum = 0
+
+  return vim.iter(pairs(segments)):fold(
+    0,
+    function(sum, _, s)
+      return sum + (s == nil or s.text == nil or s.text == "" and 0) or vim.api.nvim_strwidth(tostring(s.text))
+    end
+  )
+
+  -- for _, s in pairs(segments) do
+  --   sum = sum + (s == nil or s.text == nil or s.text == "" and 0) or vim.api.nvim_strwidth(tostring(s.text))
+  -- end
+  -- return sum
+end
+
+local function get_group_marker_new(group_id, components)
+  local group = group_state.user_groups[group_id]
+  if not group then return end
+  group.separator = group.separator or {}
+  --- NOTE: the default buffer group style is the pill
+  group.separator.style = group.separator.style or separator.pill
+  if not group.separator.style then return end
+  local seps = group.separator.style(group, config.highlights or {}, group.hidden and fmt("(%s)", #components) or "")
+
+  return vim
+    .iter(ipairs({
+      seps.sep_start and vim.list_extend(
+        seps.sep_start,
+        ui.make_clickable("handle_group_click", group.priority, { attr = { global = true } })
+      ) or {},
+      seps.sep_end,
+    }))
+    :fold({}, function(acc, i, sep)
+      local slen = vim.iter(pairs(sep or {})):fold(
+        0,
+        function(sum, _, s)
+          return sum + ((s == nil or s.text == nil or s.text == "" and 0) or vim.api.nvim_strwidth(tostring(s.text)))
+        end
+      )
+
+      acc[i] = slen > 0
+        and models.GroupView:new({
+          type = i == 1 and "group_start" or "group_end",
+          length = slen,
+          component = function() return sep end,
+        })
+
+      return acc
+    end)
+end
+
 ---Create the visual indicators bookending buffer groups
 ---@param group_id string
 ---@param components bufferline.Component[]
@@ -608,11 +659,21 @@ local function get_group_marker(group_id, components)
   group.separator.style = group.separator.style or separator.pill
   if not group.separator.style then return end
 
-  local seps = create_indicator(group, hl_groups, #components)
+  -- local seps = create_indicator(group, hl_groups, #components)
+
+  local seps = group.separator.style(group, hl_groups or {}, group.hidden and fmt("(%s)", #components) or "")
+  if seps.sep_start then
+    table.insert(seps.sep_start, ui.make_clickable("handle_group_click", group.priority, { attr = { global = true } }))
+  end
+
   local s_start, s_end = seps.sep_start, seps.sep_end
   local group_start, group_end
+
+  -- vim.api.nvim_strwidth
+
   local s_start_length = ui.get_component_size(s_start)
   local s_end_length = ui.get_component_size(s_end)
+
   if s_start_length > 0 then
     group_start = GroupView:new({
       type = "group_start",
@@ -620,6 +681,7 @@ local function get_group_marker(group_id, components)
       component = function() return s_start end,
     })
   end
+
   if s_end_length > 0 then
     group_end = GroupView:new({
       type = "group_end",
@@ -749,6 +811,7 @@ end
 local function insert_group_with_start_end(usergroup, result)
   if #usergroup > 0 then
     local group_start, group_end = get_group_marker(usergroup.id, usergroup)
+
     if group_start then table.insert(result, group_start) end
     for _, tab in ipairs(usergroup) do
       table.insert(result, tab)
@@ -819,54 +882,247 @@ local function render_old(components, sorter)
   return result
 end
 
---- Revamped logic without redundant looping
+local unpack = unpack or table.unpack
+
+local function render_modern3(components, sorter)
+  -- store the actual tabs here, so we can assign only the minimal state to group_state
+  local ugrps, tabs = unpack(vim.iter(ipairs(components)):fold({ {}, {} }, function(acc, index, tab)
+    if index == 1 then
+      acc[1] = vim
+        .iter(ipairs(vim.fn.range(1, vim.tbl_count(group_state.user_groups))))
+        :map(function(_, _) return {} end)
+        :totable()
+      acc[2] = vim.deepcopy(acc[1])
+    end
+
+    local buf = tab:as_element()
+    if not buf then return acc end
+    local buf_group = group_state.user_groups[buf.group]
+    local user_group = acc[1][buf_group.priority] or {}
+    if not user_group.name then
+      user_group.id = buf_group.id
+      user_group.name = buf_group.name
+      user_group.priority = buf_group.priority
+      user_group.hidden = buf_group.hidden
+      user_group.display_name = buf_group.display_name
+    end
+    tab.hidden = buf_group.hidden -- if the group is hidden - set tab to be hidden too
+    table.insert(acc[2][user_group.priority], tab)
+    table.insert(user_group, { id = buf.id, index = index })
+    return acc
+  end))
+
+  if vim.tbl_isempty(ugrps) then return components end
+  group_state.components_by_group = ugrps
+
+  return vim.iter(ipairs(ugrps)):fold({}, function(res, _, ug)
+    ug = sorter(ug) -- No Op
+    if #ug > 0 then
+      local group = group_state.user_groups[ug.id]
+      if group then
+        local seps = (vim.tbl_get(group, "separator", "style") or separator.pill)(
+          group,
+          config.highlights or {},
+          group.hidden and fmt("(%s)", #ug) or ""
+        )
+
+        vim
+          .iter(ipairs({
+            seps.sep_start and vim.list_extend(
+              seps.sep_start,
+              ui.make_clickable("handle_group_click", group.priority, { attr = { global = true } })
+            ) or {},
+            seps.sep_end,
+          }))
+          :each(function(i, sep)
+            local slen = vim.iter(pairs(sep)):fold(
+              0,
+              function(sum, _, s)
+                return sum + ((not s or not s.text or s.text == "" and 0) or vim.api.nvim_strwidth(tostring(s.text)))
+              end
+            )
+
+            table.insert(res, slen > 0 and models.GroupView:new({
+              type = i == 1 and "group_start" or "group_end",
+              length = slen,
+              component = function() return sep end,
+            }) or nil)
+
+            if i == 1 then res = vim.list_extend(res, tabs[ug.priority]) end
+          end)
+      end
+    end
+    return res
+  end)
+end
+--- Revamped logic without redundant looping , using functions (same as render_new)
 ---@param components bufferline.Component[]
 ---@return bufferline.Component[]
-local function render_new(components, sorter)
-  local clustered = {}
-  local size = vim.tbl_count(group_state.user_groups)
-  for i = 1, size do
-    clustered[i] = {}
-  end
-  for i, tab in ipairs(components) do
+local function render_modern2(components, sorter)
+  local user_groups = vim
+    .iter(ipairs(vim.fn.range(1, vim.tbl_count(group_state.user_groups))))
+    :map(function(_, _) return {} end)
+    :totable()
+
+  -- since we store only the id and name in the persistent component state, use this for the local state
+  local tabs = vim.deepcopy(user_groups)
+
+  for index, tab in ipairs(components) do
     local buf = tab:as_element()
     if buf then
       local buf_group = group_state.user_groups[buf.group]
-      local buf_container = clustered[buf_group.priority]
-      if not buf_container.name then
-        buf_container.id = buf_group.id
-        buf_container.name = buf_group.name
-        buf_container.priority = buf_group.priority
-        buf_container.hidden = buf_group.hidden
-        buf_container.display_name = buf_group.display_name
+      local user_group = user_groups[buf_group.priority]
+      if not user_group.name then
+        user_group.id = buf_group.id
+        user_group.name = buf_group.name
+        user_group.priority = buf_group.priority
+        user_group.hidden = buf_group.hidden
+        user_group.display_name = buf_group.display_name
       end
-      tab.hidden = buf_group.hidden
-      table.insert(buf_container, tab)
-      -- table.insert(buf_container, { id = buf.id, index = i}) (only stores bufid , index}
+      tab.hidden = buf_group.hidden -- if the group is hidden - set tab to be hidden too
+      table.insert(tabs[user_group.priority], tab)
+      table.insert(user_group, { id = buf.id, index = index })
     end
   end
 
-  -- how relevant is doing this once we update the user groups
-  -- I am assuming we only want to store the index and id here - in the below version
-  -- that is what I added , this function just has all the logic laid out
-  group_state.components_by_group = clustered
+  -- Set Group State with the minimal table that only has id and index for buffers
+  group_state.components_by_group = user_groups
 
-  if vim.tbl_isempty(clustered) then return components end
+  if vim.tbl_isempty(user_groups) then return components end
+
+  return vim.iter(ipairs(user_groups)):fold({}, function(res, _, usergroup)
+    usergroup = sorter(usergroup) -- No Op
+    if #usergroup > 0 then
+      local group = group_state.user_groups[usergroup.id]
+      if group then
+        local seps = (vim.tbl_get(group, "separator", "style") or separator.pill)(
+          group,
+          config.highlights or {},
+          group.hidden and fmt("(%s)", #usergroup) or ""
+        ) -- get style of sep from config or default to pill
+
+        vim
+          .iter(ipairs({
+            seps.sep_start and vim.list_extend(
+              seps.sep_start,
+              ui.make_clickable("handle_group_click", group.priority, { attr = { global = true } })
+            ) or {},
+            seps.sep_end,
+          }))
+          :each(function(i, sep)
+            local slen = vim.iter(pairs(sep)):fold(
+              0,
+              function(sum, _, s)
+                return sum + ((not s or not s.text or s.text == "" and 0) or vim.api.nvim_strwidth(tostring(s.text)))
+              end
+            )
+
+            table.insert(res, slen > 0 and models.GroupView:new({
+              type = i == 1 and "group_start" or "group_end",
+              length = slen,
+              component = function() return sep end,
+            }) or nil)
+
+            if i == 1 then res = vim.list_extend(res, tabs[usergroup.priority]) end
+          end)
+      end
+    end
+    return res
+  end)
+end
+
+--- Revamped logic without redundant looping , using functions (same as render_new)
+---@param components bufferline.Component[]
+---@return bufferline.Component[]
+local function render_modern(components, sorter)
+  local user_groups = vim
+    .iter(ipairs(vim.fn.range(1, vim.tbl_count(group_state.user_groups))))
+    :map(function(_, _) return {} end)
+    :totable()
+
+  print("Render\n=================================\n")
+  -- since we store only the id and name in the persistent component state, use this for the local state
+  local user_groups_minimal = vim.deepcopy(user_groups)
+
+  for index, tab in ipairs(components) do
+    local buf = tab:as_element()
+    if buf then
+      local buf_group = group_state.user_groups[buf.group]
+      local priority = buf_group.priority
+
+      local user_group, minimal = user_groups[priority], user_groups_minimal[priority]
+
+      if not user_group.name then
+        user_group.id = buf_group.id
+        user_group.name = buf_group.name
+        user_group.priority = buf_group.priority
+        user_group.hidden = buf_group.hidden
+        user_group.display_name = buf_group.display_name
+
+        minimal.id = buf_group.id
+        minimal.name = buf_group.name
+        minimal.priority = buf_group.priority
+        minimal.hidden = buf_group.hidden
+        minimal.display_name = buf_group.display_name
+      end
+
+      print("curr ugroup: " .. user_group.id .. " prio: " .. priority .. " tab: " .. vim.inspect(user_group))
+      tab.hidden = buf_group.hidden -- if the group is hidden - set tab to be hidden too
+      table.insert(user_group, tab)
+
+      table.insert(minimal, { id = buf.id, index = index })
+    end
+  end
+
+  -- Set Group State with the minimal table that only has id and index for buffers
+  group_state.components_by_group = user_groups_minimal
+
+  if vim.tbl_isempty(user_groups) then return components end
 
   local result = {} ---@type bufferline.Component[]
+  for _, usergroup in ipairs(user_groups) do
+    usergroup = sorter(usergroup) -- No Op
+    if #usergroup > 0 then
+      local group = group_state.user_groups[usergroup.id]
+      if group then
+        local seps = (vim.tbl_get(group, "separator", "style") or separator.pill)(
+          group,
+          config.highlights or {},
+          group.hidden and fmt("(%s)", #usergroup) or ""
+        ) -- get style of sep from config or default to pill
 
-  for _, group_buf_infos in ipairs(clustered) do
-    group_buf_infos = sorter(group_buf_infos)
+        vim
+          .iter(ipairs({
+            seps.sep_start and vim.list_extend(
+              seps.sep_start,
+              ui.make_clickable("handle_group_click", group.priority, { attr = { global = true } })
+            ) or {},
+            seps.sep_end,
+          }))
+          :each(function(i, sep)
+            local slen = vim.iter(pairs(sep)):fold(
+              0,
+              function(sum, _, s)
+                return sum + ((not s or not s.text or s.text == "" and 0) or vim.api.nvim_strwidth(tostring(s.text)))
+              end
+            )
 
-    if #group_buf_infos > 0 then
-      local group_start, group_end = get_group_marker(group_buf_infos.id, group_buf_infos)
-      if group_start then table.insert(result, group_start) end
-      for _, tab in ipairs(group_buf_infos) do
-        table.insert(result, tab)
+            table.insert(result, slen > 0 and models.GroupView:new({
+              type = i == 1 and "group_start" or "group_end",
+              length = slen,
+              component = function() return sep end,
+            }) or nil)
+
+            if i == 1 then result = vim.list_extend(result, usergroup) end
+          end)
       end
-      if group_end then table.insert(result, group_end) end
     end
   end
+
+  -- print(vim.inspect(group_state.user_groups))
+
+  print("Done\n=================================\n")
+
   return result
 end
 
@@ -884,6 +1140,7 @@ local function render_clean(components, sorter)
     if buf then
       local buf_group, priority = get_buf_group_and_priority(buf)
       local user_group, minimal = user_groups[priority], user_groups_minimal[priority]
+
       if not user_group.name then
         set_usergroup_fields(user_group, buf)
         set_usergroup_fields(minimal, buf)
@@ -907,11 +1164,43 @@ local function render_clean(components, sorter)
   return result
 end
 
+--[[
+--4 tabs, modern3
+Time Taken:0.013375
+Time Taken:0.012875
+Time Taken:0.013583
+Time Taken:0.089834
+
+-- 5 tabs, grouped
+Time Taken:0.328166
+Time Taken:0.349042
+Time Taken:0.131792
+Time Taken:0.426959
+Time Taken:0.275
+Time Taken:0.4715
+Time Taken:0.115666
+
+-- Clean
+--4 tabs, modern3
+Time Taken:0.147708
+Time Taken:0.04475
+Time Taken:0.13075
+Time Taken:0.03025
+Time Taken:0.015875
+
+-- 5 tabs, grouped
+Time Taken:0.261292
+Time Taken:0.222416
+Time Taken:0.25575
+Time Taken:0.3435
+Time Taken:0.2425
+--]]
 -- v1 original - uses sort_by_groups_v1
 ---@param components bufferline.Component[]
 ---@param sorter fun(list: bufferline.Component[]):bufferline.Component[]
 ---@return bufferline.Component[]
-function M.render(components, sorter) return render_clean(components, sorter) end
+function M.render(components, sorter) return render_modern3(components, sorter) end
+-- function M.render(components, sorter) return render_clean(components, sorter) end
 
 M.builtin = builtin
 M.separator = separator
