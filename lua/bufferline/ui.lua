@@ -127,6 +127,11 @@ end
 local function get_marker_size(count, element_size) return count > 0 and strwidth(tostring(count)) + element_size or 0 end
 
 function M.refresh()
+  -- local stack = debug.traceback("", 2)
+  -- print("=== RENDER STACK ===")
+  -- print(stack)
+  -- print("===================")
+
   vim.schedule(function() vim.cmd.redrawtabline() end)
 end
 

@@ -11,8 +11,6 @@ local tabpages = lazy.require("bufferline.tabpages") ---@module "bufferline.tabp
 local highlights = lazy.require("bufferline.highlights") ---@module "bufferline.highlights"
 local hover = lazy.require("bufferline.hover") ---@module "bufferline.hover"
 
-local get_tabline_text_and_highlights = require("bufferline.pr").get_tabline_text_and_highlights
-
 -- @v:lua@ in the tabline only supports global functions, so this is
 -- the only way to add click handlers without autoloaded vimscript functions
 _G.___bufferline_private = _G.___bufferline_private or {} -- to guard against reloads
@@ -77,7 +75,6 @@ local function bufferline()
 
   -- local start = vim.uv.hrtime()
   components = not is_tabline and groups.render(components, sorter) or sorter(components)
-  -- print("Time Taken:" .. tostring((vim.uv.hrtime() - start) / 1e6))
 
   local tabline = ui.tabline(components, tabpages.get())
 
@@ -91,12 +88,6 @@ local function bufferline()
     left_offset_size = tabline.left_offset_size,
     right_offset_size = tabline.right_offset_size,
   })
-
-  -- :BufferLineDebug -> prints the rendered tabline from the BufferLineDebug command
-  if capture_next_render then
-    print("Current Tabline and Highlights:\n" .. vim.inspect(get_tabline_text_and_highlights(tabline.str)))
-    capture_next_render = false
-  end
 
   return tabline.str, tabline.segments
 end
@@ -163,7 +154,7 @@ local function setup_autocommands(conf)
 
   api.nvim_create_autocmd("User", {
     pattern = "BufferLineHoverOut",
-    callback = ui.on_hover_out,
+    callback = function() ui.on_hover_out() end,
   })
 end
 
@@ -211,9 +202,24 @@ end
 
 local function setup_diagnostic_handler(preferences)
   if preferences.options.diagnostics == "nvim_lsp" and preferences.options.diagnostics_update_on_event then
+    local last, pending = vim.uv.hrtime(), false
+    local debounce = function()
+      if pending then return end
+      local curr = vim.uv.hrtime()
+      if ((curr - last) / 1e6) >= 1000 then
+        last = curr
+        return ui.refresh()
+      end
+      pending = true
+      vim.defer_fn(function()
+        ui.refresh()
+        last, pending = vim.uv.hrtime(), false
+      end, 1000)
+    end
+
     vim.diagnostic.handlers["bufferline"] = {
-      show = function() ui.refresh() end,
-      hide = function() ui.refresh() end,
+      show = debounce,
+      hide = debounce,
     }
   end
 end
