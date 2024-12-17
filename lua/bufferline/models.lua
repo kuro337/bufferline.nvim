@@ -158,24 +158,60 @@ end
 ---@type bufferline.Buffer
 local Buffer = Component:new({ type = "buffer" })
 
+local g_icon
+local done
+
+local function test_req()
+  local loaded, wr = pcall(require, "plugins.lsp.autocmds")
+  if not loaded then
+    print("failed to load get_icon")
+    return
+  end
+
+  done = true
+  if wr then
+    g_icon = wr.get_icon_hl
+  else
+    print("failed to get writer and get_icon after require")
+  end
+end
+
 ---create a new buffer class
 ---@param buf bufferline.Buffer
 ---@return bufferline.Buffer
 function Buffer:new(buf)
   assert(buf, "A buffer must be passed to create a buffer class")
+
+  -- if writer then writer.debug(" new_buf: " .. (buf.id or "?")) end
+
   buf.modifiable = vim.bo[buf.id].modifiable
   buf.modified = vim.bo[buf.id].modified
   buf.buftype = vim.bo[buf.id].buftype
   buf.extension = fn.fnamemodify(buf.path, ":e")
 
   local is_directory = fn.isdirectory(buf.path) > 0
-  buf.icon, buf.icon_highlight = utils.get_icon({
-    filetype = vim.bo[buf.id].filetype,
-    directory = is_directory,
-    path = buf.path,
-    extension = buf.extension,
-    type = buf.buftype,
-  })
+
+  if not done then pcall(test_req) end
+  if g_icon then
+    buf.icon, buf.icon_highlight = g_icon(vim.bo[buf.id].filetype)
+  else
+    buf.icon, buf.icon_highlight = utils.get_icon({
+      filetype = vim.bo[buf.id].filetype,
+      directory = is_directory,
+      path = buf.path,
+      extension = buf.extension,
+      type = buf.buftype,
+    })
+  end
+
+  -- buf.icon, buf.icon_highlight = utils.get_icon({
+  --   filetype = vim.bo[buf.id].filetype,
+  --   directory = is_directory,
+  --   path = buf.path,
+  --   extension = buf.extension,
+  --   type = buf.buftype,
+  -- })
+
   local name = "[No Name]"
   if buf.path and #buf.path > 0 then
     name = fn.fnamemodify(buf.path, ":t")

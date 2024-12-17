@@ -51,6 +51,8 @@ local M = {
 -----------------------------------------------------------------------------//
 
 local capture_next_render = false
+local last_str
+local last_segs
 
 --- @return string, bufferline.Segment[][]
 local function bufferline()
@@ -89,6 +91,8 @@ local function bufferline()
     right_offset_size = tabline.right_offset_size,
   })
 
+  last_str, last_segs = tabline.str, tabline.segments
+
   return tabline.str, tabline.segments
 end
 
@@ -100,8 +104,18 @@ local function toggle_bufferline()
   if vim.o.showtabline ~= status then vim.o.showtabline = status end
 end
 
+local last_update = 0 -- debounce unnecessary renders
+
 ---@private
 function _G.nvim_bufferline()
+  if last_str then
+    local now = vim.uv.hrtime()
+    if (now - last_update) / 1e6 < 1000 then -- 1000ms debounce, excessive renders due to TextChanged,CursorMoved
+      return last_str, last_segs -- Return last result without recalculating
+    end
+    last_update = now
+  end
+
   toggle_bufferline() -- Always populate state regardless of if tabline status is less than 2 #352
   return bufferline()
 end
@@ -111,6 +125,7 @@ local function setup_autocommands(conf)
   local BUFFERLINE_GROUP = "BufferlineCmds"
   local options = conf.options
   api.nvim_create_augroup(BUFFERLINE_GROUP, { clear = true })
+
   api.nvim_create_autocmd("ColorScheme", {
     pattern = "*",
     group = BUFFERLINE_GROUP,
@@ -127,6 +142,7 @@ local function setup_autocommands(conf)
       callback = function() state.custom_sort = utils.restore_positions() end,
     })
   end
+
   if not options.always_show_bufferline then
     -- toggle tabline
     api.nvim_create_autocmd({ "BufAdd", "TabEnter" }, {
@@ -136,15 +152,29 @@ local function setup_autocommands(conf)
     })
   end
 
+  api.nvim_create_autocmd("BufWritePost", {
+    pattern = "*",
+    callback = function()
+      last_update = 0
+      ui.refresh()
+    end,
+  })
+
   api.nvim_create_autocmd("BufRead", {
     pattern = "*",
     once = true,
-    callback = function() vim.schedule(groups.handle_group_enter) end,
+    callback = function()
+      last_update = 0
+      vim.schedule(groups.handle_group_enter)
+    end,
   })
 
   api.nvim_create_autocmd("BufEnter", {
     pattern = "*",
-    callback = function() groups.handle_group_enter() end,
+    callback = function()
+      last_update = 0
+      groups.handle_group_enter()
+    end,
   })
 
   api.nvim_create_autocmd("User", {
@@ -205,13 +235,16 @@ local function setup_diagnostic_handler(preferences)
     local last, pending = vim.uv.hrtime(), false
     local debounce = function()
       if pending then return end
+
       local curr = vim.uv.hrtime()
       if ((curr - last) / 1e6) >= 1000 then
         last = curr
+        last_update = 0
         return ui.refresh()
       end
       pending = true
       vim.defer_fn(function()
+        last_update = 0
         ui.refresh()
         last, pending = vim.uv.hrtime(), false
       end, 1000)
@@ -236,6 +269,7 @@ function M.setup(conf)
   setup_commands()
   setup_autocommands(preferences)
   setup_diagnostic_handler(preferences)
+
   vim.o.tabline = "%!v:lua.nvim_bufferline()"
   toggle_bufferline()
 end

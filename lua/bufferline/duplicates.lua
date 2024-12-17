@@ -1,8 +1,8 @@
 local M = {}
 
-local lazy = require("bufferline.lazy")
-local config = lazy.require("bufferline.config") ---@module "bufferline.config"
-local utils = require("bufferline.utils") ---@module "bufferline.utils"
+local lazy = require('bufferline.lazy')
+local config = lazy.require('bufferline.config') ---@module "bufferline.config"
+local utils = require('bufferline.utils') ---@module "bufferline.utils"
 
 local duplicates = {}
 
@@ -25,7 +25,7 @@ function M.mark(elements)
   local options = config.options
   local duplicates_across_groups = options.duplicates_across_groups
   return utils.map(function(current)
-    if current.path == "" then return current end
+    if current.path == '' then return current end
     local duplicate = duplicates[current.name]
     if not duplicate then
       duplicates[current.name] = { current }
@@ -41,10 +41,10 @@ function M.mark(elements)
         end
         if element_depth > depth then depth = element_depth end
         elements[element.ordinal].prefix_count = element_depth
-        elements[element.ordinal].duplicated = is_same_buffer and "element" or "path"
+        elements[element.ordinal].duplicated = is_same_buffer and 'element' or 'path'
       end
       current.prefix_count = depth
-      current.duplicated = is_same_buffer and "element" or "path"
+      current.duplicated = is_same_buffer and 'element' or 'path'
       duplicate[#duplicate + 1] = current
     end
     return current
@@ -79,7 +79,7 @@ function M.component(context)
   if element.duplicated and options.show_duplicate_prefix and not options.enforce_regular_tabs then
     local dir = element:ancestor(
       element.prefix_count,
-      function(dir, depth) return truncate(dir, depth, options.max_prefix_length) end
+      function(_dir, depth) return truncate(_dir, depth, options.max_prefix_length) end
     )
     return { text = dir, highlight = hl.duplicate }
   end
